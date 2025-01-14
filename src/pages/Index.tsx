@@ -9,19 +9,19 @@ const mockInstitutions = [
     name: "Global University",
     type: "University",
     location: "New York, USA",
-    programs: ["Computer Science", "Business", "Engineering"],
+    programs: ["Computer Science", "Business", "Engineering", "UX Design"],
   },
   {
     name: "European Institute of Technology",
     type: "Institute",
     location: "Paris, France",
-    programs: ["Data Science", "AI", "Robotics"],
+    programs: ["Data Science", "AI", "Robotics", "UX Design"],
   },
   {
     name: "Pacific College",
     type: "College",
     location: "Sydney, Australia",
-    programs: ["Arts", "Design", "Media"],
+    programs: ["Arts", "Design", "Media", "Medical Assistant", "UX Design"],
   },
 ];
 
@@ -30,15 +30,17 @@ const Index = () => {
   const { toast } = useToast();
 
   const handleSearch = (query: string) => {
-    // In a real app, this would be an API call
+    // Filter institutions based on program offerings
     const filtered = mockInstitutions.filter((institution) =>
-      institution.name.toLowerCase().includes(query.toLowerCase())
+      institution.programs.some((program) =>
+        program.toLowerCase().includes(query.toLowerCase())
+      )
     );
     setSearchResults(filtered);
     
     toast({
       title: "Search Results Updated",
-      description: `Found ${filtered.length} institutions matching your criteria`,
+      description: `Found ${filtered.length} institutions offering programs matching "${query}"`,
     });
   };
 
@@ -53,8 +55,7 @@ const Index = () => {
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold text-primary">Education Finder</h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Find the perfect educational institution worldwide. Search through universities,
-            colleges, and institutes based on your preferences.
+            Search for educational programs worldwide. Enter keywords like "UX Design" or "Medical Assistant" to find institutions offering these programs.
           </p>
         </div>
 
