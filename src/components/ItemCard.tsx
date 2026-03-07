@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 import type { Item } from "@/types";
-import { CATEGORIES } from "@/types";
+import { CATEGORIES, BUNDLE_TAGS } from "@/types";
 import { PointsBadge } from "./PointsBadge";
-import { MapPin, Star, Package, Clock } from "lucide-react";
+import { MapPin, Star, Package, Clock, Shuffle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface ItemCardProps {
@@ -56,9 +56,16 @@ export function ItemCard({ item, onClick, className }: ItemCardProps) {
           </span>
         )}
 
-        {/* Point badge */}
+        {/* Point badge - show total bundle points */}
         <div className="absolute top-2 right-2">
-          <PointsBadge points={item.pointValue} size="md" />
+          <PointsBadge
+            points={
+              item.bundlePointBreakdown
+                ? item.bundlePointBreakdown.reduce((sum, b) => sum + b.tier * b.count, 0)
+                : item.pointValue
+            }
+            size="md"
+          />
         </div>
 
         {/* Star badge */}
@@ -86,7 +93,24 @@ export function ItemCard({ item, onClick, className }: ItemCardProps) {
           {item.description}
         </p>
 
-        <div className="flex items-center gap-2 mt-2 flex-wrap">
+        {/* Bundle info */}
+        {item.bundleItemCount && (
+          <div className="flex items-center gap-1 mt-1.5">
+            {item.bundleType === "mix" ? (
+              <Shuffle size={10} className="text-kidswap-orange" />
+            ) : (
+              <Package size={10} className="text-muted-foreground" />
+            )}
+            <span className="text-[10px] text-muted-foreground font-medium">
+              {item.bundleItemCount} items
+              {item.bundlePointBreakdown && item.bundlePointBreakdown.length > 1 && (
+                <> ({item.bundlePointBreakdown.map(b => `${b.count}x${b.tier}pt`).join(" + ")})</>
+              )}
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
             {category?.emoji} {category?.label}
           </Badge>
@@ -103,7 +127,24 @@ export function ItemCard({ item, onClick, className }: ItemCardProps) {
           )}
         </div>
 
-        <div className="flex items-center justify-between mt-2 text-[10px] text-muted-foreground">
+        {/* Bundle tags */}
+        {item.bundleTags && item.bundleTags.length > 0 && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {item.bundleTags.slice(0, 2).map((tagValue) => {
+              const tagInfo = BUNDLE_TAGS.find((t) => t.value === tagValue);
+              return tagInfo ? (
+                <span key={tagValue} className="text-[9px] text-muted-foreground">
+                  {tagInfo.emoji} {tagInfo.label}
+                </span>
+              ) : null;
+            })}
+            {item.bundleTags.length > 2 && (
+              <span className="text-[9px] text-muted-foreground">+{item.bundleTags.length - 2}</span>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mt-1.5 text-[10px] text-muted-foreground">
           <span>{item.sellerName}</span>
           {item.ageRange && <span>{item.ageRange}</span>}
         </div>

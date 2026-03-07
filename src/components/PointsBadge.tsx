@@ -1,35 +1,34 @@
 import { cn } from "@/lib/utils";
-import type { PointTier } from "@/types";
 import { Star } from "lucide-react";
 
 interface PointsBadgeProps {
-  points: PointTier;
+  points: number;
   size?: "sm" | "md" | "lg";
   className?: string;
   showStar?: boolean;
 }
 
 const sizeClasses = {
-  sm: "h-6 w-6 text-xs",
-  md: "h-8 w-8 text-sm",
-  lg: "h-12 w-12 text-lg",
+  sm: "h-6 min-w-6 px-1 text-xs",
+  md: "h-8 min-w-8 px-1.5 text-sm",
+  lg: "h-12 min-w-12 px-2 text-lg",
 };
 
-const colorClasses: Record<PointTier, string> = {
-  1: "bg-kidswap-teal text-white",
-  5: "bg-kidswap-purple text-white",
-  10: "bg-gradient-to-br from-kidswap-pink to-kidswap-orange text-white",
-};
+function getColorClass(points: number): string {
+  if (points >= 10) return "bg-gradient-to-br from-kidswap-pink to-kidswap-orange text-white";
+  if (points >= 5) return "bg-kidswap-purple text-white";
+  return "bg-kidswap-teal text-white";
+}
 
 export function PointsBadge({ points, size = "md", className, showStar }: PointsBadgeProps) {
-  const isStar = points === 10 || showStar;
+  const isStar = points >= 10 || showStar;
 
   return (
     <div
       className={cn(
         "rounded-full flex items-center justify-center font-bold relative",
         sizeClasses[size],
-        colorClasses[points],
+        getColorClass(points),
         isStar && "animate-star-pulse",
         className
       )}
