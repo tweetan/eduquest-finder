@@ -45,6 +45,7 @@ const defaultUser: UserProfile = {
   starClaimLimit: 1,
   lastStarClaimReset: new Date().toISOString(),
   bonusStarClaims: 0,
+  plusItemsListedSinceLastBonus: 0,
   hasCompletedOnboarding: false,
   joinedAt: new Date().toISOString(),
   flagsReceived: 0,
@@ -108,15 +109,41 @@ export const useStore = create<AppState>()(
 
       addItem: (item) =>
         set((state) => {
+          // Calculate total points for the bundle
+          const totalPoints = item.bundlePointBreakdown
+            ? item.bundlePointBreakdown.reduce((sum, b) => sum + b.tier * b.count, 0)
+            : item.pointValue;
+
+          let bonusStarClaims = state.user.bonusStarClaims;
+          let plusCount = state.user.plusItemsListedSinceLastBonus;
+
+          if (item.isStar) {
+            // Listing a star item earns 1 bonus star claim
+            bonusStarClaims += 1;
+          }
+
+          // Count plus items in this bundle
+          if (item.bundlePointBreakdown) {
+            const plusInBundle = item.bundlePointBreakdown
+              .filter((b) => b.tier === 5)
+              .reduce((sum, b) => sum + b.count, 0);
+            plusCount += plusInBundle;
+          } else if (item.pointValue === 5) {
+            plusCount += 1;
+          }
+
+          // Every 2 plus items listed earns 1 bonus star claim
+          const newBonusFromPlus = Math.floor(plusCount / 2);
+          bonusStarClaims += newBonusFromPlus;
+          plusCount = plusCount % 2;
+
           const newUser = {
             ...state.user,
-            points: state.user.points + item.pointValue,
-            totalEarned: state.user.totalEarned + item.pointValue,
+            points: state.user.points + totalPoints,
+            totalEarned: state.user.totalEarned + totalPoints,
             itemsListed: state.user.itemsListed + 1,
-            bonusStarClaims:
-              item.isStar
-                ? state.user.bonusStarClaims + 1
-                : state.user.bonusStarClaims,
+            bonusStarClaims,
+            plusItemsListedSinceLastBonus: plusCount,
           };
           return { items: [item, ...state.items], user: newUser };
         }),
@@ -135,7 +162,11 @@ export const useStore = create<AppState>()(
         const state = get();
         let user = checkAndResetStarWindow(state.user);
 
-        if (user.points < item.pointValue) return false;
+        const totalPoints = item.bundlePointBreakdown
+          ? item.bundlePointBreakdown.reduce((sum, b) => sum + b.tier * b.count, 0)
+          : item.pointValue;
+
+        if (user.points < totalPoints) return false;
 
         if (item.isStar) {
           const totalAllowed = user.starClaimLimit + user.bonusStarClaims;
@@ -145,8 +176,8 @@ export const useStore = create<AppState>()(
 
         user = {
           ...user,
-          points: user.points - item.pointValue,
-          totalSpent: user.totalSpent + item.pointValue,
+          points: user.points - totalPoints,
+          totalSpent: user.totalSpent + totalPoints,
           itemsClaimed: user.itemsClaimed + 1,
         };
 
@@ -238,6 +269,10 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "0-3 months",
       size: "Newborn",
+      bundleType: "basic",
+      bundleItemCount: 5,
+      bundleTags: ["baby-essentials", "unisex", "0-6m"],
+      bundlePointBreakdown: [{ tier: 1, count: 5 }],
     },
     {
       id: "sample-2",
@@ -372,8 +407,8 @@ function generateSampleItems(): Item[] {
     },
     {
       id: "sample-10",
-      title: "Cotton Toddler Dresses (4 pack)",
-      description: "Cute summer dresses, size 2T. Various patterns. No stains or tears.",
+      title: "Summer Toddler Girl Bundle (6 pieces)",
+      description: "4 cotton dresses + 2 sun hats, size 2T. Various patterns. No stains or tears.",
       category: "clothing",
       condition: "good",
       pointValue: 1,
@@ -386,6 +421,31 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "1-2 years",
       size: "2T",
+      bundleType: "basic",
+      bundleItemCount: 6,
+      bundleTags: ["summer-fun", "girls", "1-2y"],
+      bundlePointBreakdown: [{ tier: 1, count: 6 }],
+    },
+    {
+      id: "sample-11",
+      title: "Winter Play Mix Bundle",
+      description: "Snow boots (5pts) + 5 warm layers: fleece jacket, snow pants, mittens, hat, scarf (1pt each). Perfect for toddler winter!",
+      category: "clothing",
+      condition: "good",
+      pointValue: 5,
+      imageUrl: "",
+      sellerId: "seller-3",
+      sellerName: "Lisa K.",
+      status: "available",
+      createdAt: new Date(Date.now() - 950400000).toISOString(),
+      isStar: false,
+      isLocalPickupOnly: false,
+      ageRange: "2-4 years",
+      size: "3T",
+      bundleType: "mix",
+      bundleItemCount: 6,
+      bundleTags: ["winter-play", "unisex", "2-4y"],
+      bundlePointBreakdown: [{ tier: 5, count: 1 }, { tier: 1, count: 5 }],
     },
   ];
 }
