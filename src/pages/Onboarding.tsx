@@ -28,9 +28,9 @@ const slides = [
             1
           </div>
           <div>
-            <p className="font-semibold text-sm">Basic Items — 1 point each</p>
+            <p className="font-semibold text-sm">Basic Items — 1 point</p>
             <p className="text-xs text-muted-foreground">
-              T-shirts, onesies, socks, bibs, small toys. Always listed in bundles of <strong>at least 5</strong> (= 5+ points).
+              T-shirts, onesies, socks, bibs, small toys. List in bulk!
             </p>
           </div>
         </div>
@@ -39,7 +39,7 @@ const slides = [
             5
           </div>
           <div>
-            <p className="font-semibold text-sm">Plus Items — 5 points each</p>
+            <p className="font-semibold text-sm">Plus Items — 5 points</p>
             <p className="text-xs text-muted-foreground">
               Winter boots, snowsuits, baby carriers, quality shoes.
             </p>
@@ -52,7 +52,7 @@ const slides = [
           <div>
             <p className="font-semibold text-sm">Star Items — 10 points</p>
             <p className="text-xs text-muted-foreground">
-              Strollers, car seats, cribs, skis. Local pickup only. Need 10 points + a star claim to buy.
+              Strollers, car seats, cribs, skis. Local pickup only. Limited to 1 claim per 4 months.
             </p>
           </div>
         </div>
@@ -60,59 +60,8 @@ const slides = [
     ),
   },
   {
-    title: "Bundles Explained",
-    subtitle: "Everything is listed as a bundle",
-    content: (
-      <div className="space-y-3 max-w-sm mx-auto">
-        <div className="bg-kidswap-teal/10 border border-kidswap-teal/30 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">📦</span>
-            <p className="font-semibold text-sm">Basic Bundle</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            At least <strong>5 basic items</strong> (1 pt each). So each bundle = <strong>5+ points</strong>.
-            Example: 5 onesies, 6 t-shirts, etc.
-          </p>
-        </div>
-
-        <div className="bg-kidswap-purple/10 border border-kidswap-purple/30 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">📦</span>
-            <p className="font-semibold text-sm">Plus Bundle</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            One or more <strong>Plus items</strong> (5 pts each). Example: winter boots, baby carrier.
-          </p>
-        </div>
-
-        <div className="bg-kidswap-orange/10 border border-kidswap-orange/30 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">🔀</span>
-            <p className="font-semibold text-sm">Mix Bundle</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            <strong>Combine</strong> Basic (1pt) and Plus (5pt) items in one bundle!
-            Example: snow boots (5pts) + 5 warm layers (1pt each) = 10pts total.
-          </p>
-        </div>
-
-        <div className="bg-gray-50 rounded-xl p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">🏷️</span>
-            <p className="font-semibold text-sm">Tag Your Bundle</p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Add tags for <strong>activity/season</strong> (winter play, muddy weather, summer fun),
-            <strong> gender</strong> (boys, girls, unisex), or <strong>age</strong> range so
-            buyers can find exactly what they need.
-          </p>
-        </div>
-      </div>
-    ),
-  },
-  {
-    title: "Star Claims",
-    subtitle: "How to buy star items",
+    title: "Star Item Rules",
+    subtitle: "Big items, special rules",
     content: (
       <div className="space-y-4 max-w-sm mx-auto">
         <div className="bg-kidswap-yellow/10 border border-kidswap-yellow/30 rounded-xl p-4 space-y-3">
@@ -120,25 +69,17 @@ const slides = [
             <span className="text-2xl">⭐</span>
             <p className="font-semibold">Star Item Claims</p>
           </div>
-          <p className="text-xs text-muted-foreground mb-2">
-            To buy a Star item (10 pts), you need <strong>10 points AND a star claim</strong>.
-          </p>
-          <p className="text-xs font-semibold text-kidswap-purple">How to earn star claims:</p>
           <ul className="space-y-2 text-sm text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="text-kidswap-purple font-bold mt-0.5">1.</span>
-              You get <strong>1 star claim every 4 months</strong> automatically
+              You can claim <strong>1 star item every 4 months</strong>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-kidswap-purple font-bold mt-0.5">2.</span>
-              List a star item yourself? <strong>+1 bonus star claim</strong>
+              List a star item yourself? You get <strong>1 bonus star claim</strong>!
             </li>
             <li className="flex items-start gap-2">
               <span className="text-kidswap-purple font-bold mt-0.5">3.</span>
-              List <strong>2 Plus items</strong>? <strong>+1 bonus star claim</strong>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-kidswap-purple font-bold mt-0.5">4.</span>
               Star items are <strong>local pickup only</strong> — no shipping
             </li>
           </ul>
@@ -209,7 +150,7 @@ const slides = [
         <div className="flex items-start gap-3 p-4 bg-kidswap-blue/10 rounded-xl">
           <span className="text-3xl">📦</span>
           <div>
-            <p className="font-semibold text-sm">Regular Bundles (1 & 5 pts)</p>
+            <p className="font-semibold text-sm">Regular Items (1 & 5 pts)</p>
             <p className="text-xs text-muted-foreground">
               Shipped to you! The receiver pays a small shipping fee.
             </p>
