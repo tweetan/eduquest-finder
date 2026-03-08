@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Item, UserProfile, ClaimRecord, FlagReport, SupportTicket } from "@/types";
+import { supabase } from "@/lib/supabase";
+import * as db from "@/services/supabaseService";
 
 interface AppState {
   user: UserProfile;
@@ -8,6 +10,15 @@ interface AppState {
   claims: ClaimRecord[];
   flags: FlagReport[];
   supportTickets: SupportTicket[];
+
+  // Whether we're connected to Supabase (auth'd)
+  isOnline: boolean;
+  setIsOnline: (v: boolean) => void;
+
+  // Sync helpers
+  loadItemsFromDb: () => Promise<void>;
+  loadProfileFromDb: () => Promise<void>;
+  loadClaimsFromDb: () => Promise<void>;
 
   // User actions
   completeOnboarding: () => void;
@@ -18,6 +29,7 @@ interface AppState {
 
   // Item actions
   addItem: (item: Item) => void;
+  addItemWithPhotos: (item: Item, files: File[]) => Promise<void>;
   removeItem: (id: string) => void;
   updateItemStatus: (id: string, status: Item["status"]) => void;
 
@@ -68,7 +80,7 @@ const defaultUser: UserProfile = {
   shippingWarnings: 0,
 };
 
-// Simulated seller profiles for demo data
+// Simulated seller profiles for demo/offline mode
 const sellerProfiles: Record<string, { firstName: string; phone: string; email: string }> = {
   "seller-1": { firstName: "Sarah", phone: "+1 555-0101", email: "sarah@example.com" },
   "seller-2": { firstName: "Mike", phone: "+1 555-0102", email: "mike@example.com" },
@@ -94,6 +106,15 @@ function checkAndResetStarWindow(user: UserProfile): UserProfile {
   return user;
 }
 
+/** Persist profile changes to Supabase in the background */
+function syncProfile(state: AppState) {
+  if (state.isOnline && state.user.id !== "user-1") {
+    db.updateProfile(state.user.id, state.user).catch(() => {
+      // Silently fail — localStorage has the data
+    });
+  }
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -102,11 +123,55 @@ export const useStore = create<AppState>()(
       claims: [],
       flags: [],
       supportTickets: [],
+      isOnline: false,
 
+      setIsOnline: (v) => set({ isOnline: v }),
+
+      // ── Sync from DB ───────────────────────────────────────
+      loadItemsFromDb: async () => {
+        try {
+          const items = await db.fetchItems();
+          if (items.length > 0) {
+            set({ items });
+          }
+        } catch {
+          // Stay with localStorage data
+        }
+      },
+
+      loadProfileFromDb: async () => {
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (!authUser) return;
+          const profile = await db.fetchProfile(authUser.id);
+          if (profile) {
+            set({ user: profile, isOnline: true });
+          }
+        } catch {
+          // Stay with localStorage data
+        }
+      },
+
+      loadClaimsFromDb: async () => {
+        try {
+          const state = get();
+          if (!state.isOnline || state.user.id === "user-1") return;
+          const claims = await db.fetchClaimsForUser(state.user.id);
+          if (claims.length > 0) {
+            set({ claims });
+          }
+        } catch {
+          // Stay with localStorage data
+        }
+      },
+
+      // ── User actions ───────────────────────────────────────
       completeOnboarding: () =>
-        set((state) => ({
-          user: { ...state.user, hasCompletedOnboarding: true },
-        })),
+        set((state) => {
+          const newState = { user: { ...state.user, hasCompletedOnboarding: true } };
+          syncProfile({ ...state, ...newState });
+          return newState;
+        }),
 
       resetOnboarding: () =>
         set((state) => ({
@@ -114,32 +179,43 @@ export const useStore = create<AppState>()(
         })),
 
       addPoints: (amount) =>
-        set((state) => ({
-          user: {
-            ...state.user,
-            points: state.user.points + amount,
-            totalEarned: state.user.totalEarned + amount,
-          },
-        })),
+        set((state) => {
+          const newState = {
+            user: {
+              ...state.user,
+              points: state.user.points + amount,
+              totalEarned: state.user.totalEarned + amount,
+            },
+          };
+          syncProfile({ ...state, ...newState });
+          return newState;
+        }),
 
       spendPoints: (amount) => {
         const { user } = get();
         if (user.points < amount) return false;
-        set((state) => ({
-          user: {
-            ...state.user,
-            points: state.user.points - amount,
-            totalSpent: state.user.totalSpent + amount,
-          },
-        }));
+        set((state) => {
+          const newState = {
+            user: {
+              ...state.user,
+              points: state.user.points - amount,
+              totalSpent: state.user.totalSpent + amount,
+            },
+          };
+          syncProfile({ ...state, ...newState });
+          return newState;
+        });
         return true;
       },
 
       updateUser: (updates) =>
-        set((state) => ({
-          user: { ...state.user, ...updates },
-        })),
+        set((state) => {
+          const newState = { user: { ...state.user, ...updates } };
+          syncProfile({ ...state, ...newState });
+          return newState;
+        }),
 
+      // ── Item actions ───────────────────────────────────────
       addItem: (item) =>
         set((state) => {
           const newUser = {
@@ -152,19 +228,51 @@ export const useStore = create<AppState>()(
                 ? state.user.bonusStarClaims + 1
                 : state.user.bonusStarClaims,
           };
+
+          // Persist to Supabase in background
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.insertItem(item).catch(() => {});
+            db.updateProfile(state.user.id, newUser).catch(() => {});
+          }
+
           return { items: [item, ...state.items], user: newUser };
         }),
 
+      addItemWithPhotos: async (item, files) => {
+        const state = get();
+        let imageUrls = item.imageUrls;
+
+        // Upload photos to Supabase Storage if online
+        if (state.isOnline && state.user.id !== "user-1" && files.length > 0) {
+          const urls = await Promise.all(
+            files.map((file) => db.uploadItemPhoto(file, state.user.id))
+          );
+          imageUrls = urls;
+        }
+
+        const finalItem = { ...item, imageUrls };
+        get().addItem(finalItem);
+      },
+
       removeItem: (id) =>
-        set((state) => ({
-          items: state.items.filter((i) => i.id !== id),
-        })),
+        set((state) => {
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.deleteItem(id).catch(() => {});
+          }
+          return { items: state.items.filter((i) => i.id !== id) };
+        }),
 
       updateItemStatus: (id, status) =>
-        set((state) => ({
-          items: state.items.map((i) => (i.id === id ? { ...i, status } : i)),
-        })),
+        set((state) => {
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.updateItem(id, { status }).catch(() => {});
+          }
+          return {
+            items: state.items.map((i) => (i.id === id ? { ...i, status } : i)),
+          };
+        }),
 
+      // ── Claim actions ──────────────────────────────────────
       claimItem: (item) => {
         const state = get();
         let user = checkAndResetStarWindow(state.user);
@@ -203,6 +311,13 @@ export const useStore = create<AppState>()(
           sellerPhone: sellerInfo?.phone || "+1 555-0000",
         };
 
+        // Persist to Supabase
+        if (state.isOnline && user.id !== "user-1") {
+          db.insertClaim(claim).catch(() => {});
+          db.updateItem(item.id, { status: "claimed" }).catch(() => {});
+          db.updateProfile(user.id, user).catch(() => {});
+        }
+
         set({
           user,
           items: state.items.map((i) =>
@@ -218,31 +333,37 @@ export const useStore = create<AppState>()(
         set((state) => ({ claims: [claim, ...state.claims] })),
 
       updateClaimStatus: (id, status) =>
-        set((state) => ({
-          claims: state.claims.map((c) =>
-            c.id === id ? { ...c, status } : c
-          ),
-        })),
+        set((state) => {
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.updateClaim(id, { status }).catch(() => {});
+          }
+          return {
+            claims: state.claims.map((c) =>
+              c.id === id ? { ...c, status } : c
+            ),
+          };
+        }),
 
       completeClaimAsClaimant: (claimId, overallRating, individualRatings, comment) =>
         set((state) => {
           const claim = state.claims.find((c) => c.id === claimId);
           if (!claim) return state;
 
-          let newFlags = [...state.flags];
           let newTickets = [...state.supportTickets];
-          // We track warnings on the seller side (simulated here)
 
-          // If overall rating < 3, send to support for review
           if (overallRating !== undefined && overallRating < 3) {
-            newTickets.push({
+            const ticket: SupportTicket = {
               id: `ticket-${Date.now()}`,
               claimId,
               type: "low-quality",
               description: comment || `Low quality rating: ${overallRating}/5`,
               createdAt: new Date().toISOString(),
               status: "pending",
-            });
+            };
+            newTickets.push(ticket);
+            if (state.isOnline && state.user.id !== "user-1") {
+              db.insertSupportTicket(ticket).catch(() => {});
+            }
           }
 
           const updatedClaim: ClaimRecord = {
@@ -253,6 +374,16 @@ export const useStore = create<AppState>()(
             claimerDone: true,
             status: claim.listerDone ? "completed" : claim.status,
           };
+
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.updateClaim(claimId, {
+              quality_rating: overallRating,
+              individual_ratings: individualRatings,
+              quality_comment: comment,
+              claimer_done: true,
+              status: updatedClaim.status,
+            }).catch(() => {});
+          }
 
           return {
             claims: state.claims.map((c) =>
@@ -270,26 +401,27 @@ export const useStore = create<AppState>()(
           let updatedUser = { ...state.user };
           let newTickets = [...state.supportTickets];
 
-          // If shipping not reimbursed, lister gets 3 extra points, claimer gets warning
           if (!shippingReimbursed) {
             updatedUser = {
               ...updatedUser,
               points: updatedUser.points + 3,
               totalEarned: updatedUser.totalEarned + 3,
             };
-            // In a real app we'd warn the claimer — here we just note it
           }
 
-          // If exchange was not respectful, send to support
           if (!exchangeRespectful) {
-            newTickets.push({
+            const ticket: SupportTicket = {
               id: `ticket-${Date.now()}`,
               claimId,
               type: "disrespectful-exchange",
               description: comment || "Exchange was not conducted respectfully",
               createdAt: new Date().toISOString(),
               status: "pending",
-            });
+            };
+            newTickets.push(ticket);
+            if (state.isOnline && state.user.id !== "user-1") {
+              db.insertSupportTicket(ticket).catch(() => {});
+            }
           }
 
           const updatedClaim: ClaimRecord = {
@@ -301,6 +433,17 @@ export const useStore = create<AppState>()(
             status: claim.claimerDone ? "completed" : claim.status,
           };
 
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.updateClaim(claimId, {
+              lister_done: true,
+              shipping_reimbursed: shippingReimbursed,
+              exchange_respectful: exchangeRespectful,
+              lister_comment: comment,
+              status: updatedClaim.status,
+            }).catch(() => {});
+            db.updateProfile(state.user.id, updatedUser).catch(() => {});
+          }
+
           return {
             user: updatedUser,
             claims: state.claims.map((c) =>
@@ -310,6 +453,7 @@ export const useStore = create<AppState>()(
           };
         }),
 
+      // ── Flags ──────────────────────────────────────────────
       flagItem: (itemId, reason) =>
         set((state) => {
           const item = state.items.find((i) => i.id === itemId);
@@ -323,6 +467,11 @@ export const useStore = create<AppState>()(
             createdAt: new Date().toISOString(),
           };
 
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.insertFlag(flag).catch(() => {});
+            db.updateItem(itemId, { status: "flagged" }).catch(() => {});
+          }
+
           return {
             flags: [flag, ...state.flags],
             items: state.items.map((i) =>
@@ -332,10 +481,14 @@ export const useStore = create<AppState>()(
         }),
 
       addSupportTicket: (ticket) =>
-        set((state) => ({
-          supportTickets: [ticket, ...state.supportTickets],
-        })),
+        set((state) => {
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.insertSupportTicket(ticket).catch(() => {});
+          }
+          return { supportTickets: [ticket, ...state.supportTickets] };
+        }),
 
+      // ── Star claim helpers ─────────────────────────────────
       canClaimStarItem: () => {
         const user = checkAndResetStarWindow(get().user);
         const totalAllowed = user.starClaimLimit + user.bonusStarClaims;
@@ -351,7 +504,6 @@ export const useStore = create<AppState>()(
       getSellerProfile: (sellerId) => {
         const profile = sellerProfiles[sellerId];
         if (profile) return { firstName: profile.firstName, phone: profile.phone };
-        // Check if it's the current user
         const user = get().user;
         if (sellerId === user.id) return { firstName: user.firstName || user.name, phone: user.phone };
         return null;
@@ -359,6 +511,13 @@ export const useStore = create<AppState>()(
     }),
     {
       name: "kidswap-store",
+      partialize: (state) => ({
+        user: state.user,
+        items: state.items,
+        claims: state.claims,
+        flags: state.flags,
+        supportTickets: state.supportTickets,
+      }),
     }
   )
 );
