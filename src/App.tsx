@@ -10,6 +10,7 @@ import Browse from "@/pages/Browse";
 import ListItem from "@/pages/ListItem";
 import Claims from "@/pages/Claims";
 import Profile from "@/pages/Profile";
+import HowToSwap from "@/pages/HowToSwap";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ function AppContent() {
           <Route path="/list" element={<ListItem />} />
           <Route path="/claims" element={<Claims />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/how-to-swap" element={<HowToSwap />} />
         </Routes>
       </main>
     </>

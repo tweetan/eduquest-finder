@@ -1,7 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, PlusCircle, User, ShoppingBag } from "lucide-react";
+import { Home, PlusCircle, User, ShoppingBag, HelpCircle } from "lucide-react";
 import { useStore } from "@/store/useStore";
-import { PointsBadge } from "./PointsBadge";
 
 export function NavBar() {
   const location = useLocation();
@@ -12,6 +11,7 @@ export function NavBar() {
     { to: "/list", icon: PlusCircle, label: "List" },
     { to: "/claims", icon: ShoppingBag, label: "Claims" },
     { to: "/profile", icon: User, label: "Profile" },
+    { to: "/how-to-swap", icon: HelpCircle, label: "How to Swap" },
   ];
 
   return (
@@ -44,14 +44,14 @@ export function NavBar() {
               <Link
                 key={to}
                 to={to}
-                className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
+                className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition-colors ${
                   active
                     ? "text-kidswap-purple"
                     : "text-gray-400 hover:text-gray-600"
                 }`}
               >
-                <Icon size={22} strokeWidth={active ? 2.5 : 2} />
-                <span className="text-[10px] font-medium">{label}</span>
+                <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+                <span className="text-[9px] font-medium leading-tight text-center">{label}</span>
               </Link>
             );
           })}

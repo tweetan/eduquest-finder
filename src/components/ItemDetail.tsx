@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "@/store/useStore";
 import type { Item } from "@/types";
-import { CATEGORIES, TIER_INFO } from "@/types";
+import { CATEGORIES } from "@/types";
 import { PointsBadge } from "./PointsBadge";
 import { Confetti } from "./Confetti";
 import { PointsAnimation } from "./PointsAnimation";
@@ -20,11 +20,12 @@ import {
   ArrowLeft,
   Star,
   MapPin,
-  Package,
   Flag,
   AlertTriangle,
   Check,
   Truck,
+  Phone,
+  User,
 } from "lucide-react";
 import { playClaim, playStarClaim, playError } from "@/lib/sounds";
 import { toast } from "sonner";
@@ -46,7 +47,7 @@ const placeholderEmojis: Record<string, string> = {
 };
 
 export function ItemDetail({ item, onBack }: ItemDetailProps) {
-  const { user, claimItem, canClaimStarItem, getStarClaimsRemaining, flagItem } =
+  const { user, claimItem, canClaimStarItem, getStarClaimsRemaining, flagItem, claims } =
     useStore();
   const [showConfetti, setShowConfetti] = useState(false);
   const [showPointsAnim, setShowPointsAnim] = useState(false);
@@ -59,7 +60,20 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
   const canAfford = user.points >= item.pointValue;
   const canClaimStar = item.isStar ? canClaimStarItem() : true;
 
+  // Find the claim record for this item (to show contact details)
+  const claimRecord = claims.find(
+    (c) => c.itemId === item.id && c.claimerId === user.id
+  );
+
   const handleClaim = () => {
+    if (user.isSuspended) {
+      playError();
+      toast.error("Account suspended", {
+        description: "Your account has been suspended. Please contact support.",
+      });
+      return;
+    }
+
     if (!canAfford) {
       playError();
       toast.error("Not enough points!", {
@@ -87,9 +101,7 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
         playClaim();
       }
       toast.success("Item claimed!", {
-        description: item.isStar
-          ? "Arrange local pickup with the seller."
-          : `A shipping fee of $5.99 will apply.`,
+        description: "Contact details are now visible below.",
       });
     }
   };
@@ -104,6 +116,13 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
       });
     }
   };
+
+  // Get the latest claim record (including fresh ones)
+  const activeClaimRecord = claimed
+    ? useStore.getState().claims.find((c) => c.itemId === item.id && c.claimerId === user.id)
+    : claimRecord;
+
+  const imageUrl = item.imageUrls?.[0] || "";
 
   return (
     <div className="pb-24 max-w-lg mx-auto">
@@ -124,9 +143,9 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
 
       {/* Image */}
       <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center mx-4 rounded-2xl overflow-hidden">
-        {item.imageUrl ? (
+        {imageUrl ? (
           <img
-            src={item.imageUrl}
+            src={imageUrl}
             alt={item.title}
             className="w-full h-full object-cover"
           />
@@ -146,12 +165,40 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
         </div>
       </div>
 
+      {/* Multiple photos */}
+      {item.imageUrls && item.imageUrls.length > 1 && (
+        <div className="flex gap-2 px-4 mt-2 overflow-x-auto">
+          {item.imageUrls.map((url, i) => (
+            <img
+              key={i}
+              src={url}
+              alt={`${item.title} ${i + 1}`}
+              className="w-16 h-16 rounded-lg object-cover border-2 border-gray-100 shrink-0"
+            />
+          ))}
+        </div>
+      )}
+
       {/* Info */}
       <div className="px-4 mt-4 space-y-3">
         <div>
           <h1 className="text-xl font-bold">{item.title}</h1>
           <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
         </div>
+
+        {/* Bundle items list */}
+        {item.bundleItems && item.bundleItems.length > 0 && (
+          <div className="bg-gray-50 rounded-xl p-3">
+            <p className="text-xs font-medium mb-2">Items in this bundle:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {item.bundleItems.map((bi) => (
+                <Badge key={bi.id} variant="secondary" className="text-xs">
+                  {bi.name} ({bi.points}pt{bi.points > 1 ? "s" : ""})
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">
@@ -171,6 +218,7 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
             <Badge variant="outline">{item.ageRange}</Badge>
           )}
           {item.size && <Badge variant="outline">Size: {item.size}</Badge>}
+          <Badge variant="outline" className="capitalize">{item.tier}</Badge>
         </div>
 
         {/* Delivery info */}
@@ -195,8 +243,30 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
           </div>
         </div>
 
+        {/* Contact details — shown after claiming */}
+        {activeClaimRecord && (
+          <div className="bg-kidswap-green/10 border border-kidswap-green/30 rounded-xl p-4 space-y-2">
+            <p className="text-sm font-bold text-kidswap-green flex items-center gap-2">
+              <Check size={16} /> Claimed! Contact details:
+            </p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-sm">
+                <User size={14} className="text-muted-foreground" />
+                <span><strong>{activeClaimRecord.sellerFirstName}</strong></span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Phone size={14} className="text-muted-foreground" />
+                <span>{activeClaimRecord.sellerPhone}</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Contact {activeClaimRecord.sellerFirstName} to arrange {item.isLocalPickupOnly ? "pickup" : "shipping"}. You have 1 month to finalize the exchange.
+            </p>
+          </div>
+        )}
+
         {/* Star claim info */}
-        {item.isStar && (
+        {item.isStar && !claimed && item.status === "available" && (
           <div className="bg-kidswap-yellow/10 border border-kidswap-yellow/30 rounded-xl p-3">
             <div className="flex items-center gap-2 text-sm">
               <Star size={16} className="text-kidswap-yellow fill-kidswap-yellow" />
@@ -237,14 +307,16 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
             </Button>
           )}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full text-muted-foreground"
-            onClick={() => setShowFlagDialog(true)}
-          >
-            <Flag size={14} className="mr-1" /> Report quality issue
-          </Button>
+          {!claimed && item.status === "available" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              onClick={() => setShowFlagDialog(true)}
+            >
+              <Flag size={14} className="mr-1" /> Report quality issue
+            </Button>
+          )}
         </div>
       </div>
 

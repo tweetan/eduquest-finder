@@ -1,15 +1,17 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Item, UserProfile, ClaimRecord, FlagReport } from "@/types";
+import type { Item, UserProfile, ClaimRecord, FlagReport, SupportTicket } from "@/types";
 
 interface AppState {
   user: UserProfile;
   items: Item[];
   claims: ClaimRecord[];
   flags: FlagReport[];
+  supportTickets: SupportTicket[];
 
   // User actions
   completeOnboarding: () => void;
+  resetOnboarding: () => void;
   addPoints: (amount: number) => void;
   spendPoints: (amount: number) => boolean;
   updateUser: (updates: Partial<UserProfile>) => void;
@@ -23,19 +25,31 @@ interface AppState {
   claimItem: (item: Item) => boolean;
   addClaim: (claim: ClaimRecord) => void;
   updateClaimStatus: (id: string, status: ClaimRecord["status"]) => void;
+  completeClaimAsClaimant: (claimId: string, overallRating?: number, individualRatings?: { itemName: string; rating: number }[], comment?: string) => void;
+  completeClaimAsLister: (claimId: string, shippingReimbursed: boolean, exchangeRespectful: boolean, comment?: string) => void;
 
   // Flag actions
   flagItem: (itemId: string, reason: string) => void;
 
+  // Support tickets
+  addSupportTicket: (ticket: SupportTicket) => void;
+
   // Star claim helpers
   canClaimStarItem: () => boolean;
   getStarClaimsRemaining: () => number;
+
+  // Seller lookup helpers
+  getSellerProfile: (sellerId: string) => { firstName: string; phone: string } | null;
 }
 
 const defaultUser: UserProfile = {
   id: "user-1",
   name: "Parent",
+  firstName: "",
   avatar: "",
+  email: "",
+  phone: "",
+  address: "",
   points: 5,
   totalEarned: 5,
   totalSpent: 0,
@@ -48,9 +62,23 @@ const defaultUser: UserProfile = {
   hasCompletedOnboarding: false,
   joinedAt: new Date().toISOString(),
   flagsReceived: 0,
+  warnings: 0,
+  isSuspended: false,
+  qualityWarnings: 0,
+  shippingWarnings: 0,
+};
+
+// Simulated seller profiles for demo data
+const sellerProfiles: Record<string, { firstName: string; phone: string; email: string }> = {
+  "seller-1": { firstName: "Sarah", phone: "+1 555-0101", email: "sarah@example.com" },
+  "seller-2": { firstName: "Mike", phone: "+1 555-0102", email: "mike@example.com" },
+  "seller-3": { firstName: "Lisa", phone: "+1 555-0103", email: "lisa@example.com" },
+  "seller-4": { firstName: "Jen", phone: "+1 555-0104", email: "jen@example.com" },
+  "seller-5": { firstName: "Dave", phone: "+1 555-0105", email: "dave@example.com" },
 };
 
 const FOUR_MONTHS_MS = 4 * 30 * 24 * 60 * 60 * 1000;
+const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
 function checkAndResetStarWindow(user: UserProfile): UserProfile {
   const lastReset = new Date(user.lastStarClaimReset).getTime();
@@ -73,10 +101,16 @@ export const useStore = create<AppState>()(
       items: generateSampleItems(),
       claims: [],
       flags: [],
+      supportTickets: [],
 
       completeOnboarding: () =>
         set((state) => ({
           user: { ...state.user, hasCompletedOnboarding: true },
+        })),
+
+      resetOnboarding: () =>
+        set((state) => ({
+          user: { ...state.user, hasCompletedOnboarding: false },
         })),
 
       addPoints: (amount) =>
@@ -135,6 +169,7 @@ export const useStore = create<AppState>()(
         const state = get();
         let user = checkAndResetStarWindow(state.user);
 
+        if (user.isSuspended) return false;
         if (user.points < item.pointValue) return false;
 
         if (item.isStar) {
@@ -150,6 +185,9 @@ export const useStore = create<AppState>()(
           itemsClaimed: user.itemsClaimed + 1,
         };
 
+        const sellerInfo = sellerProfiles[item.sellerId];
+        const deadline = new Date(Date.now() + ONE_MONTH_MS).toISOString();
+
         const claim: ClaimRecord = {
           id: `claim-${Date.now()}`,
           itemId: item.id,
@@ -158,6 +196,11 @@ export const useStore = create<AppState>()(
           claimedAt: new Date().toISOString(),
           shippingFee: item.isStar ? undefined : 5.99,
           status: "pending",
+          deadline,
+          claimerDone: false,
+          listerDone: false,
+          sellerFirstName: sellerInfo?.firstName || item.sellerName.split(" ")[0],
+          sellerPhone: sellerInfo?.phone || "+1 555-0000",
         };
 
         set({
@@ -181,6 +224,92 @@ export const useStore = create<AppState>()(
           ),
         })),
 
+      completeClaimAsClaimant: (claimId, overallRating, individualRatings, comment) =>
+        set((state) => {
+          const claim = state.claims.find((c) => c.id === claimId);
+          if (!claim) return state;
+
+          let newFlags = [...state.flags];
+          let newTickets = [...state.supportTickets];
+          // We track warnings on the seller side (simulated here)
+
+          // If overall rating < 3, send to support for review
+          if (overallRating !== undefined && overallRating < 3) {
+            newTickets.push({
+              id: `ticket-${Date.now()}`,
+              claimId,
+              type: "low-quality",
+              description: comment || `Low quality rating: ${overallRating}/5`,
+              createdAt: new Date().toISOString(),
+              status: "pending",
+            });
+          }
+
+          const updatedClaim: ClaimRecord = {
+            ...claim,
+            qualityRating: overallRating,
+            individualRatings,
+            qualityComment: comment,
+            claimerDone: true,
+            status: claim.listerDone ? "completed" : claim.status,
+          };
+
+          return {
+            claims: state.claims.map((c) =>
+              c.id === claimId ? updatedClaim : c
+            ),
+            supportTickets: newTickets,
+          };
+        }),
+
+      completeClaimAsLister: (claimId, shippingReimbursed, exchangeRespectful, comment) =>
+        set((state) => {
+          const claim = state.claims.find((c) => c.id === claimId);
+          if (!claim) return state;
+
+          let updatedUser = { ...state.user };
+          let newTickets = [...state.supportTickets];
+
+          // If shipping not reimbursed, lister gets 3 extra points, claimer gets warning
+          if (!shippingReimbursed) {
+            updatedUser = {
+              ...updatedUser,
+              points: updatedUser.points + 3,
+              totalEarned: updatedUser.totalEarned + 3,
+            };
+            // In a real app we'd warn the claimer — here we just note it
+          }
+
+          // If exchange was not respectful, send to support
+          if (!exchangeRespectful) {
+            newTickets.push({
+              id: `ticket-${Date.now()}`,
+              claimId,
+              type: "disrespectful-exchange",
+              description: comment || "Exchange was not conducted respectfully",
+              createdAt: new Date().toISOString(),
+              status: "pending",
+            });
+          }
+
+          const updatedClaim: ClaimRecord = {
+            ...claim,
+            listerDone: true,
+            shippingReimbursed,
+            exchangeRespectful,
+            listerComment: comment,
+            status: claim.claimerDone ? "completed" : claim.status,
+          };
+
+          return {
+            user: updatedUser,
+            claims: state.claims.map((c) =>
+              c.id === claimId ? updatedClaim : c
+            ),
+            supportTickets: newTickets,
+          };
+        }),
+
       flagItem: (itemId, reason) =>
         set((state) => {
           const item = state.items.find((i) => i.id === itemId);
@@ -202,6 +331,11 @@ export const useStore = create<AppState>()(
           };
         }),
 
+      addSupportTicket: (ticket) =>
+        set((state) => ({
+          supportTickets: [ticket, ...state.supportTickets],
+        })),
+
       canClaimStarItem: () => {
         const user = checkAndResetStarWindow(get().user);
         const totalAllowed = user.starClaimLimit + user.bonusStarClaims;
@@ -212,6 +346,15 @@ export const useStore = create<AppState>()(
         const user = checkAndResetStarWindow(get().user);
         const totalAllowed = user.starClaimLimit + user.bonusStarClaims;
         return Math.max(0, totalAllowed - user.starClaimsUsed);
+      },
+
+      getSellerProfile: (sellerId) => {
+        const profile = sellerProfiles[sellerId];
+        if (profile) return { firstName: profile.firstName, phone: profile.phone };
+        // Check if it's the current user
+        const user = get().user;
+        if (sellerId === user.id) return { firstName: user.firstName || user.name, phone: user.phone };
+        return null;
       },
     }),
     {
@@ -228,8 +371,8 @@ function generateSampleItems(): Item[] {
       description: "Assorted colors, size 0-3 months. Gently used, no stains.",
       category: "clothing",
       condition: "good",
-      pointValue: 1,
-      imageUrl: "https://images.unsplash.com/photo-1522771930-78848d9293e8?w=400&h=300&fit=crop",
+      pointValue: 5,
+      imageUrls: ["https://images.unsplash.com/photo-1522771930-78848d9293e8?w=400&h=300&fit=crop"],
       sellerId: "seller-1",
       sellerName: "Sarah M.",
       status: "available",
@@ -238,15 +381,23 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "0-3 months",
       size: "Newborn",
+      tier: "bundle",
+      bundleItems: [
+        { id: "b1", name: "Onesie", points: 1 },
+        { id: "b2", name: "Onesie", points: 1 },
+        { id: "b3", name: "Onesie", points: 1 },
+        { id: "b4", name: "Onesie", points: 1 },
+        { id: "b5", name: "Onesie", points: 1 },
+      ],
     },
     {
       id: "sample-2",
-      title: "Kids T-Shirts (3 pack)",
+      title: "Kids T-Shirts & Pants Bundle",
       description: "Fun dinosaur prints, size 3T. Great condition!",
       category: "clothing",
       condition: "like-new",
-      pointValue: 1,
-      imageUrl: "https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=400&h=300&fit=crop",
+      pointValue: 5,
+      imageUrls: ["https://images.unsplash.com/photo-1519238263530-99bdd11df2ea?w=400&h=300&fit=crop"],
       sellerId: "seller-2",
       sellerName: "Mike R.",
       status: "available",
@@ -255,6 +406,14 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "2-3 years",
       size: "3T",
+      tier: "bundle",
+      bundleItems: [
+        { id: "b6", name: "T-shirt", points: 1 },
+        { id: "b7", name: "T-shirt", points: 1 },
+        { id: "b8", name: "T-shirt", points: 1 },
+        { id: "b9", name: "Pants", points: 1 },
+        { id: "b10", name: "Pants", points: 1 },
+      ],
     },
     {
       id: "sample-3",
@@ -263,7 +422,7 @@ function generateSampleItems(): Item[] {
       category: "shoes",
       condition: "good",
       pointValue: 5,
-      imageUrl: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop",
+      imageUrls: ["https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop"],
       sellerId: "seller-3",
       sellerName: "Lisa K.",
       status: "available",
@@ -272,6 +431,7 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "2-4 years",
       size: "10 Toddler",
+      tier: "plus",
     },
     {
       id: "sample-4",
@@ -280,7 +440,7 @@ function generateSampleItems(): Item[] {
       category: "gear",
       condition: "good",
       pointValue: 5,
-      imageUrl: "https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=400&h=300&fit=crop",
+      imageUrls: ["https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=400&h=300&fit=crop"],
       sellerId: "seller-1",
       sellerName: "Sarah M.",
       status: "available",
@@ -288,6 +448,7 @@ function generateSampleItems(): Item[] {
       isStar: false,
       isLocalPickupOnly: false,
       ageRange: "0-4 years",
+      tier: "plus",
     },
     {
       id: "sample-5",
@@ -296,7 +457,7 @@ function generateSampleItems(): Item[] {
       category: "gear",
       condition: "like-new",
       pointValue: 10,
-      imageUrl: "https://images.unsplash.com/photo-1586105251261-72a756497a31?w=400&h=300&fit=crop",
+      imageUrls: ["https://images.unsplash.com/photo-1586105251261-72a756497a31?w=400&h=300&fit=crop"],
       sellerId: "seller-4",
       sellerName: "Jen W.",
       status: "available",
@@ -304,6 +465,7 @@ function generateSampleItems(): Item[] {
       isStar: true,
       isLocalPickupOnly: true,
       ageRange: "0-3 years",
+      tier: "star",
     },
     {
       id: "sample-6",
@@ -312,7 +474,7 @@ function generateSampleItems(): Item[] {
       category: "gear",
       condition: "good",
       pointValue: 10,
-      imageUrl: "https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=400&h=300&fit=crop",
+      imageUrls: ["https://images.unsplash.com/photo-1555252333-9f8e92e65df9?w=400&h=300&fit=crop"],
       sellerId: "seller-5",
       sellerName: "Dave P.",
       status: "available",
@@ -320,15 +482,16 @@ function generateSampleItems(): Item[] {
       isStar: true,
       isLocalPickupOnly: true,
       ageRange: "0-10 years",
+      tier: "star",
     },
     {
       id: "sample-7",
-      title: "LEGO Duplo Set",
-      description: "Large box of mixed Duplo blocks, ~100 pieces. Clean and complete.",
+      title: "LEGO Duplo & Small Toys Bundle",
+      description: "Large box of mixed Duplo blocks, ~100 pieces plus small figurines. Clean and complete.",
       category: "toys",
       condition: "good",
-      pointValue: 1,
-      imageUrl: "https://images.unsplash.com/photo-1587654780291-39c9404d7dd0?w=400&h=300&fit=crop",
+      pointValue: 5,
+      imageUrls: ["https://images.unsplash.com/photo-1587654780291-39c9404d7dd0?w=400&h=300&fit=crop"],
       sellerId: "seller-2",
       sellerName: "Mike R.",
       status: "available",
@@ -336,15 +499,23 @@ function generateSampleItems(): Item[] {
       isStar: false,
       isLocalPickupOnly: false,
       ageRange: "1-5 years",
+      tier: "bundle",
+      bundleItems: [
+        { id: "b11", name: "Small toy", points: 1 },
+        { id: "b12", name: "Small toy", points: 1 },
+        { id: "b13", name: "Small toy", points: 1 },
+        { id: "b14", name: "Small toy", points: 1 },
+        { id: "b15", name: "Small toy", points: 1 },
+      ],
     },
     {
       id: "sample-8",
-      title: "Kids Ski Set (skis + boots + poles)",
-      description: "90cm skis, size 11 boots. Perfect starter set. Used 2 seasons.",
+      title: "Kids Ski Set",
+      description: "90cm skis, size 11 boots, matching poles. Perfect starter set. Used 2 seasons.",
       category: "outdoor",
       condition: "good",
       pointValue: 10,
-      imageUrl: "https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop",
+      imageUrls: ["https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop"],
       sellerId: "seller-3",
       sellerName: "Lisa K.",
       status: "available",
@@ -352,6 +523,7 @@ function generateSampleItems(): Item[] {
       isStar: true,
       isLocalPickupOnly: true,
       ageRange: "4-6 years",
+      tier: "star",
     },
     {
       id: "sample-9",
@@ -360,7 +532,7 @@ function generateSampleItems(): Item[] {
       category: "clothing",
       condition: "like-new",
       pointValue: 5,
-      imageUrl: "https://images.unsplash.com/photo-1604467707321-70d009801bf0?w=400&h=300&fit=crop",
+      imageUrls: ["https://images.unsplash.com/photo-1604467707321-70d009801bf0?w=400&h=300&fit=crop"],
       sellerId: "seller-5",
       sellerName: "Dave P.",
       status: "available",
@@ -369,15 +541,16 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "12-24 months",
       size: "18M",
+      tier: "plus",
     },
     {
       id: "sample-10",
-      title: "Cotton Toddler Dresses (4 pack)",
-      description: "Cute summer dresses, size 2T. Various patterns. No stains or tears.",
+      title: "Cotton Toddler Dresses & Rompers",
+      description: "Cute summer dresses and rompers, size 2T. Various patterns. No stains or tears.",
       category: "clothing",
       condition: "good",
-      pointValue: 1,
-      imageUrl: "https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?w=400&h=300&fit=crop",
+      pointValue: 6,
+      imageUrls: ["https://images.unsplash.com/photo-1518831959646-742c3a14ebf7?w=400&h=300&fit=crop"],
       sellerId: "seller-4",
       sellerName: "Jen W.",
       status: "available",
@@ -386,6 +559,13 @@ function generateSampleItems(): Item[] {
       isLocalPickupOnly: false,
       ageRange: "1-2 years",
       size: "2T",
+      tier: "bundle",
+      bundleItems: [
+        { id: "b16", name: "Dress", points: 2 },
+        { id: "b17", name: "Dress", points: 2 },
+        { id: "b18", name: "Romper", points: 1 },
+        { id: "b19", name: "Romper", points: 1 },
+      ],
     },
   ];
 }
