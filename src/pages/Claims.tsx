@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PointsBadge } from "@/components/PointsBadge";
+import { openSupportEmail } from "@/lib/support";
 import {
   Dialog,
   DialogContent,
@@ -130,9 +131,20 @@ export default function Claims() {
     );
 
     setShowClaimerDoneDialog(false);
+
+    if (effectiveRating < 3) {
+      openSupportEmail({
+        type: "low-quality",
+        claimId: activeClaim.id,
+        itemTitle: activeClaim.item.title,
+        description: qualityComment || `Low quality rating: ${effectiveRating}/5`,
+        reporterName: user.firstName || user.name,
+      });
+    }
+
     toast.success("Exchange marked as done!", {
       description: effectiveRating < 3
-        ? "Your feedback has been sent to our team for review."
+        ? "Your feedback is being sent to our team for review."
         : "Thank you for your feedback!",
     });
   };
@@ -171,6 +183,16 @@ export default function Claims() {
     );
 
     setShowListerDoneDialog(false);
+
+    if (!exchangeRespectful) {
+      openSupportEmail({
+        type: "disrespectful-exchange",
+        claimId: listerClaim.id,
+        itemTitle: listerClaim.item.title,
+        description: listerComment || "Exchange was not conducted respectfully",
+        reporterName: user.firstName || user.name,
+      });
+    }
 
     if (!shippingReimbursed) {
       toast.success("Done! You received 3 bonus points for unreimbursed shipping.", {

@@ -28,6 +28,7 @@ import {
   User,
 } from "lucide-react";
 import { playClaim, playStarClaim, playError } from "@/lib/sounds";
+import { openSupportEmail } from "@/lib/support";
 import { toast } from "sonner";
 
 interface ItemDetailProps {
@@ -110,9 +111,17 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
     if (flagReason.trim()) {
       flagItem(item.id, flagReason);
       setShowFlagDialog(false);
+
+      openSupportEmail({
+        type: "quality-flag",
+        itemTitle: item.title,
+        description: flagReason,
+        reporterName: user.firstName || user.name,
+      });
+
       setFlagReason("");
       toast.warning("Item flagged", {
-        description: "Thank you for helping maintain quality standards.",
+        description: "Your report is being sent to our team for review.",
       });
     }
   };
