@@ -40,7 +40,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner position="top-center" richColors />
-      <BrowserRouter>
+      <BrowserRouter basename="/eduquest-finder">
         <AppContent />
       </BrowserRouter>
     </TooltipProvider>
