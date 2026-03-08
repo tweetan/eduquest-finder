@@ -44,9 +44,9 @@ export function ItemCard({ item, onClick, className }: ItemCardProps) {
     >
       {/* Image area */}
       <div className="relative aspect-[4/3] bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-        {item.imageUrl ? (
+        {item.imageUrls?.[0] ? (
           <img
-            src={item.imageUrl}
+            src={item.imageUrls[0]}
             alt={item.title}
             className="w-full h-full object-cover"
           />

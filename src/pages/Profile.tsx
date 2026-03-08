@@ -1,23 +1,60 @@
+import { useState } from "react";
 import { useStore } from "@/store/useStore";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Star,
   Package,
   ShoppingBag,
   TrendingUp,
-  Award,
-  Flag,
   RotateCcw,
   Info,
+  Pencil,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Profile() {
-  const { user, items, claims, getStarClaimsRemaining } = useStore();
+  const { user, items, getStarClaimsRemaining, updateUser } = useStore();
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: user.firstName || "",
+    name: user.name || "",
+    email: user.email || "",
+    phone: user.phone || "",
+    address: user.address || "",
+  });
 
   const myListings = items.filter((i) => i.sellerId === user.id);
   const starClaimsRemaining = getStarClaimsRemaining();
   const totalStarAllowed = user.starClaimLimit + user.bonusStarClaims;
+
+  const profileComplete = user.firstName && user.email && user.phone && user.address;
+
+  const handleSaveProfile = () => {
+    if (!editForm.firstName.trim() || !editForm.email.trim() || !editForm.phone.trim() || !editForm.address.trim()) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    updateUser({
+      firstName: editForm.firstName.trim(),
+      name: editForm.firstName.trim(),
+      email: editForm.email.trim(),
+      phone: editForm.phone.trim(),
+      address: editForm.address.trim(),
+    });
+    setShowEditDialog(false);
+    toast.success("Profile updated!");
+  };
 
   const stats = [
     {
@@ -49,17 +86,92 @@ export default function Profile() {
   return (
     <div className="pb-20 pt-2 px-4 max-w-lg mx-auto">
       {/* User header */}
-      <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-4">
         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-kidswap-purple to-kidswap-teal flex items-center justify-center text-white text-2xl font-bold">
-          {user.name.charAt(0)}
+          {(user.firstName || user.name).charAt(0)}
         </div>
-        <div>
-          <h1 className="text-xl font-bold">{user.name}</h1>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold">{user.firstName || user.name}</h1>
           <p className="text-sm text-muted-foreground">
             Member since {new Date(user.joinedAt).toLocaleDateString()}
           </p>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          onClick={() => {
+            setEditForm({
+              firstName: user.firstName || "",
+              name: user.name || "",
+              email: user.email || "",
+              phone: user.phone || "",
+              address: user.address || "",
+            });
+            setShowEditDialog(true);
+          }}
+        >
+          <Pencil size={14} className="mr-1" /> Edit
+        </Button>
       </div>
+
+      {/* Profile completion warning */}
+      {!profileComplete && (
+        <div className="bg-kidswap-orange/10 border border-kidswap-orange/30 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <AlertTriangle size={16} className="text-kidswap-orange mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Complete your profile</p>
+            <p className="text-xs text-muted-foreground">
+              Add your name, email, phone and address so other swappers can reach you when items are claimed.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2 text-xs"
+              onClick={() => {
+                setEditForm({
+                  firstName: user.firstName || "",
+                  name: user.name || "",
+                  email: user.email || "",
+                  phone: user.phone || "",
+                  address: user.address || "",
+                });
+                setShowEditDialog(true);
+              }}
+            >
+              Complete Profile
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Account status warnings */}
+      {user.isSuspended && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <AlertTriangle size={16} className="text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-700">Account Suspended</p>
+            <p className="text-xs text-red-600">
+              Your account has been suspended due to multiple warnings. Please contact support.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {(user.qualityWarnings > 0 || user.shippingWarnings > 0) && !user.isSuspended && (
+        <div className="bg-kidswap-yellow/10 border border-kidswap-yellow/30 rounded-xl p-3 mb-4 flex items-start gap-2">
+          <AlertTriangle size={16} className="text-kidswap-yellow mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Account Warnings</p>
+            {user.qualityWarnings > 0 && (
+              <p className="text-xs text-muted-foreground">Quality warnings: {user.qualityWarnings}</p>
+            )}
+            {user.shippingWarnings > 0 && (
+              <p className="text-xs text-muted-foreground">Shipping warnings: {user.shippingWarnings}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3 mb-6">
@@ -108,6 +220,22 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* Contact Info */}
+      {profileComplete && (
+        <div className="bg-gray-50 rounded-2xl p-4 mb-6">
+          <h3 className="font-bold text-sm mb-2">Contact Info</h3>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p><strong>Name:</strong> {user.firstName}</p>
+            <p><strong>Email:</strong> {user.email}</p>
+            <p><strong>Phone:</strong> {user.phone}</p>
+            <p><strong>Address:</strong> {user.address}</p>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 italic">
+            Your first name and phone are shared with other swappers when an exchange is made.
+          </p>
+        </div>
+      )}
+
       {/* My Listings */}
       <div className="mb-6">
         <h2 className="font-bold text-sm mb-3 flex items-center gap-2">
@@ -152,16 +280,81 @@ export default function Profile() {
             <strong>Claim items</strong> from other families using your points
           </li>
           <li>
-            Points <strong>cannot be converted to money</strong>
+            <strong>Bundle items</strong> must add up to at least 5 points
           </li>
           <li>
             <strong>Star items</strong> (10 pts) are limited to 1 claim per 4 months
           </li>
           <li>
-            <strong>Flag poor quality</strong> items — senders lose points
+            <strong>Rate quality</strong> after each exchange — poor ratings lead to warnings
           </li>
         </ul>
       </div>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Profile</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="firstName" className="text-sm">First Name *</Label>
+              <Input
+                id="firstName"
+                placeholder="Your first name"
+                value={editForm.firstName}
+                onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="email" className="text-sm">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="phone" className="text-sm">Phone Number *</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="+1 555-0123"
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="address" className="text-sm">Address *</Label>
+              <Input
+                id="address"
+                placeholder="Your mailing address"
+                value={editForm.address}
+                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                className="mt-1"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Your first name and phone number become visible to the other party when an exchange is made.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button
+              className="bg-kidswap-purple hover:bg-kidswap-purple/90"
+              onClick={handleSaveProfile}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
