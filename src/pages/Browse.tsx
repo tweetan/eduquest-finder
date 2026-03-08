@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CATEGORIES, TIER_INFO } from "@/types";
 import type { ItemCategory, PointTier } from "@/types";
-import { Search, SlidersHorizontal, Star } from "lucide-react";
+import { Search, SlidersHorizontal, Star, Sparkles } from "lucide-react";
 import { ItemDetail } from "@/components/ItemDetail";
 import type { Item } from "@/types";
 
@@ -45,6 +45,17 @@ export default function Browse() {
 
   return (
     <div className="pb-20 pt-2 px-4 max-w-lg mx-auto">
+      {/* Welcome header */}
+      <div className="mb-4 bg-gradient-to-r from-kidswap-purple/10 to-kidswap-teal/10 rounded-2xl p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <Sparkles size={18} className="text-kidswap-purple" />
+          <h1 className="font-bold text-lg">Welcome back!</h1>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Browse {availableItems.length} items available to swap near you
+        </p>
+      </div>
+
       {/* Search */}
       <div className="flex gap-2 mb-3">
         <div className="relative flex-1">
