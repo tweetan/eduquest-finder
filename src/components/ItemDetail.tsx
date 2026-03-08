@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useStore } from "@/store/useStore";
 import type { Item } from "@/types";
-import { CATEGORIES, TIER_INFO, BUNDLE_TAGS } from "@/types";
+import { CATEGORIES, TIER_INFO } from "@/types";
 import { PointsBadge } from "./PointsBadge";
 import { Confetti } from "./Confetti";
 import { PointsAnimation } from "./PointsAnimation";
@@ -56,17 +56,14 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
 
   const category = CATEGORIES.find((c) => c.value === item.category);
   const emoji = placeholderEmojis[item.category] || "📦";
-  const totalPoints = item.bundlePointBreakdown
-    ? item.bundlePointBreakdown.reduce((sum, b) => sum + b.tier * b.count, 0)
-    : item.pointValue;
-  const canAfford = user.points >= totalPoints;
+  const canAfford = user.points >= item.pointValue;
   const canClaimStar = item.isStar ? canClaimStarItem() : true;
 
   const handleClaim = () => {
     if (!canAfford) {
       playError();
       toast.error("Not enough points!", {
-        description: `You need ${totalPoints} points but have ${user.points}.`,
+        description: `You need ${item.pointValue} points but have ${user.points}.`,
       });
       return;
     }
@@ -145,7 +142,7 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
         )}
 
         <div className="absolute top-3 right-3">
-          <PointsBadge points={totalPoints} size="lg" />
+          <PointsBadge points={item.pointValue} size="lg" />
         </div>
       </div>
 
@@ -175,39 +172,6 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
           )}
           {item.size && <Badge variant="outline">Size: {item.size}</Badge>}
         </div>
-
-        {/* Bundle info */}
-        {item.bundleItemCount && (
-          <div className="bg-kidswap-purple/5 border border-kidswap-purple/20 rounded-xl p-3 space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Package size={16} className="text-kidswap-purple" />
-              Bundle: {item.bundleItemCount} items
-              {item.bundleType === "mix" && " (Mix)"}
-            </div>
-            {item.bundlePointBreakdown && item.bundlePointBreakdown.length > 1 && (
-              <div className="flex gap-2 text-xs text-muted-foreground">
-                {item.bundlePointBreakdown.map((b, i) => (
-                  <span key={i}>
-                    {b.count} x {b.tier}pt{b.tier > 1 ? "s" : ""}
-                  </span>
-                ))}
-                <span className="font-medium text-kidswap-purple">= {totalPoints} pts total</span>
-              </div>
-            )}
-            {item.bundleTags && item.bundleTags.length > 0 && (
-              <div className="flex gap-1.5 flex-wrap">
-                {item.bundleTags.map((tagValue) => {
-                  const tagInfo = BUNDLE_TAGS.find((t) => t.value === tagValue);
-                  return tagInfo ? (
-                    <Badge key={tagValue} variant="outline" className="text-[10px]">
-                      {tagInfo.emoji} {tagInfo.label}
-                    </Badge>
-                  ) : null;
-                })}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Delivery info */}
         <div className="bg-gray-50 rounded-xl p-3 space-y-2">
@@ -241,7 +205,7 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              1 star claim per 4 months. Earn bonus claims by listing a star item or 2 Plus items!
+              1 star claim per 4 months. List a star item for a bonus claim!
             </p>
           </div>
         )}
@@ -266,10 +230,10 @@ export function ItemDetail({ item, onBack }: ItemDetailProps) {
               disabled={!canAfford || !canClaimStar}
             >
               {!canAfford
-                ? `Need ${totalPoints - user.points} more points`
+                ? `Need ${item.pointValue - user.points} more points`
                 : !canClaimStar
                 ? "Star claim limit reached"
-                : `Claim for ${totalPoints} point${totalPoints > 1 ? "s" : ""}`}
+                : `Claim for ${item.pointValue} point${item.pointValue > 1 ? "s" : ""}`}
             </Button>
           )}
 
