@@ -37,6 +37,7 @@ export function useAuth() {
       password,
       options: {
         data: { first_name: firstName },
+        emailRedirectTo: `${window.location.origin}/eduquest-finder/`,
       },
     });
     return { data, error };
