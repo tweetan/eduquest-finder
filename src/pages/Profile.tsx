@@ -20,11 +20,16 @@ import {
   Info,
   Pencil,
   AlertTriangle,
+  LogOut,
+  Shield,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
 export default function Profile() {
-  const { user, items, getStarClaimsRemaining, updateUser } = useStore();
+  const { user, items, getStarClaimsRemaining, updateUser, logout } = useStore();
+  const { signOut } = useAuth();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: user.firstName || "",
@@ -290,6 +295,40 @@ export default function Profile() {
           </li>
         </ul>
       </div>
+
+      {/* Dev: Admin toggle */}
+      <div className="mt-6 flex items-center justify-between bg-gray-50 rounded-xl p-3">
+        <div className="flex items-center gap-2">
+          <Shield size={14} className="text-kidswap-purple" />
+          <span className="text-xs font-medium text-gray-600">Admin mode</span>
+          <Badge variant="outline" className="text-[9px]">DEV</Badge>
+        </div>
+        <button
+          onClick={() => updateUser({ isAdmin: !user.isAdmin })}
+          className={`relative w-10 h-5 rounded-full transition-colors ${
+            user.isAdmin ? "bg-kidswap-purple" : "bg-gray-300"
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+              user.isAdmin ? "translate-x-5" : ""
+            }`}
+          />
+        </button>
+      </div>
+
+      {/* Logout */}
+      <Button
+        variant="outline"
+        className="w-full mt-6 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+        onClick={async () => {
+          await signOut();
+          logout();
+        }}
+      >
+        <LogOut size={16} className="mr-2" />
+        Log out
+      </Button>
 
       {/* Edit Profile Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>

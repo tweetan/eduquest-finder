@@ -26,6 +26,8 @@ type ListTier = "bundle" | "plus" | "star";
 export default function ListItem() {
   const navigate = useNavigate();
   const addItem = useStore((s) => s.addItem);
+  const addItemWithPhotos = useStore((s) => s.addItemWithPhotos);
+  const isOnline = useStore((s) => s.isOnline);
   const user = useStore((s) => s.user);
 
   const [title, setTitle] = useState("");
@@ -49,6 +51,8 @@ export default function ListItem() {
 
   // Photo upload
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const availableItemsForTier = useMemo(
     () => LISTABLE_ITEMS.filter((item) => item.tier === tier),
@@ -100,6 +104,7 @@ export default function ListItem() {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach((file) => {
+      setPhotoFiles((prev) => [...prev, file]);
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotos((prev) => [...prev, reader.result as string]);
@@ -110,9 +115,10 @@ export default function ListItem() {
 
   const handleRemovePhoto = (index: number) => {
     setPhotos(photos.filter((_, i) => i !== index));
+    setPhotoFiles(photoFiles.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit) {
       if (isBundle && totalBundlePoints < 5) {
         toast.error("Not enough points", {
@@ -124,6 +130,8 @@ export default function ListItem() {
       return;
     }
 
+    setIsSubmitting(true);
+
     const item: Item = {
       id: `item-${Date.now()}`,
       title: title.trim(),
@@ -131,7 +139,7 @@ export default function ListItem() {
       category,
       condition,
       pointValue: effectivePointValue,
-      imageUrls: photos,
+      imageUrls: photos, // data URLs as fallback
       sellerId: user.id,
       sellerName: user.firstName || user.name,
       status: "available",
@@ -144,7 +152,19 @@ export default function ListItem() {
       bundleItems: isBundle ? bundleItems : undefined,
     };
 
-    addItem(item);
+    try {
+      // If online with real files, upload to Supabase Storage
+      if (isOnline && photoFiles.length > 0) {
+        await addItemWithPhotos(item, photoFiles);
+      } else {
+        addItem(item);
+      }
+    } catch {
+      // Fallback: save with data URLs
+      addItem(item);
+    }
+
+    setIsSubmitting(false);
     setListed(true);
     setListedPointValue(effectivePointValue);
     setShowConfetti(true);
@@ -198,6 +218,7 @@ export default function ListItem() {
               setBundleItems([]);
               setSelectedItem("");
               setPhotos([]);
+              setPhotoFiles([]);
             }}
           >
             List Another Item
@@ -514,9 +535,11 @@ export default function ListItem() {
           className="w-full rounded-full bg-kidswap-purple hover:bg-kidswap-purple/90 text-white"
           size="lg"
           onClick={handleSubmit}
-          disabled={!canSubmit}
+          disabled={!canSubmit || isSubmitting}
         >
-          {isBundle && totalBundlePoints < 5
+          {isSubmitting
+            ? "Uploading..."
+            : isBundle && totalBundlePoints < 5
             ? `Need ${5 - totalBundlePoints} more pts to list`
             : `List ${tier === "bundle" ? "Bundle" : selectedItem || "Item"} — Earn ${effectivePointValue} Point${effectivePointValue > 1 ? "s" : ""}`}
         </Button>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, PlusCircle, User, ShoppingBag, HelpCircle } from "lucide-react";
+import { Home, PlusCircle, User, ShoppingBag, HelpCircle, Shield } from "lucide-react";
 import { useStore } from "@/store/useStore";
 
 export function NavBar() {
@@ -11,7 +11,9 @@ export function NavBar() {
     { to: "/list", icon: PlusCircle, label: "List" },
     { to: "/claims", icon: ShoppingBag, label: "Claims" },
     { to: "/profile", icon: User, label: "Profile" },
-    { to: "/how-to-swap", icon: HelpCircle, label: "How to Swap" },
+    ...(user.isAdmin
+      ? [{ to: "/admin", icon: Shield, label: "Admin" }]
+      : [{ to: "/how-to-swap", icon: HelpCircle, label: "How to Swap" }]),
   ];
 
   return (
