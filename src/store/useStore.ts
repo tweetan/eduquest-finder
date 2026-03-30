@@ -49,6 +49,7 @@ interface AppState {
 
   // Support tickets
   addSupportTicket: (ticket: SupportTicket) => void;
+  resolveTicket: (ticketId: string) => void;
 
   // Star claim helpers
   canClaimStarItem: () => boolean;
@@ -82,6 +83,7 @@ const defaultUser: UserProfile = {
   isSuspended: false,
   qualityWarnings: 0,
   shippingWarnings: 0,
+  isAdmin: false,
 };
 
 // Simulated seller profiles for demo/offline mode
@@ -526,6 +528,18 @@ export const useStore = create<AppState>()(
             db.insertSupportTicket(ticket).catch(() => {});
           }
           return { supportTickets: [ticket, ...state.supportTickets] };
+        }),
+
+      resolveTicket: (ticketId) =>
+        set((state) => {
+          if (state.isOnline && state.user.id !== "user-1") {
+            db.updateSupportTicketStatus(ticketId, "reviewed").catch(() => {});
+          }
+          return {
+            supportTickets: state.supportTickets.map((t) =>
+              t.id === ticketId ? { ...t, status: "reviewed" as const } : t
+            ),
+          };
         }),
 
       // ── Star claim helpers ─────────────────────────────────

@@ -56,6 +56,7 @@ export interface UserProfile {
   isSuspended: boolean;
   qualityWarnings: number;
   shippingWarnings: number;
+  isAdmin: boolean;
 }
 
 export interface ClaimRecord {

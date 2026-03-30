@@ -74,6 +74,7 @@ function dbToProfile(row: any): UserProfile {
     isSuspended: row.is_suspended,
     qualityWarnings: row.quality_warnings,
     shippingWarnings: row.shipping_warnings,
+    isAdmin: row.is_admin ?? false,
   };
 }
 
@@ -100,6 +101,7 @@ function profileToDb(profile: Partial<UserProfile>) {
   if (profile.isSuspended !== undefined) map.is_suspended = profile.isSuspended;
   if (profile.qualityWarnings !== undefined) map.quality_warnings = profile.qualityWarnings;
   if (profile.shippingWarnings !== undefined) map.shipping_warnings = profile.shippingWarnings;
+  if (profile.isAdmin !== undefined) map.is_admin = profile.isAdmin;
   return map;
 }
 
@@ -255,6 +257,58 @@ export async function insertSupportTicket(ticket: SupportTicket): Promise<void> 
     description: ticket.description,
     status: ticket.status,
   });
+  if (error) throw error;
+}
+
+// ============================================================
+// ADMIN: fetch all moderation data
+// ============================================================
+
+export async function fetchAllProfiles(): Promise<UserProfile[]> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []).map(dbToProfile);
+}
+
+export async function fetchAllFlags(): Promise<(FlagReport & { itemTitle?: string; reporterName?: string })[]> {
+  const { data, error } = await supabase
+    .from("flags")
+    .select("*, items(title), profiles!flags_reporter_id_fkey(first_name)")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    itemId: row.item_id,
+    reporterId: row.reporter_id,
+    reason: row.reason,
+    createdAt: row.created_at,
+    itemTitle: row.items?.title,
+    reporterName: row.profiles?.first_name,
+  }));
+}
+
+export async function fetchAllSupportTickets(): Promise<(SupportTicket & { claimerName?: string })[]> {
+  const { data, error } = await supabase
+    .from("support_tickets")
+    .select("*, claims(claimer_id, profiles!claims_claimer_id_fkey(first_name))")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    claimId: row.claim_id,
+    type: row.type,
+    description: row.description,
+    createdAt: row.created_at,
+    status: row.status,
+    claimerName: row.claims?.profiles?.first_name,
+  }));
+}
+
+export async function updateSupportTicketStatus(id: string, status: string): Promise<void> {
+  const { error } = await supabase.from("support_tickets").update({ status }).eq("id", id);
   if (error) throw error;
 }
 

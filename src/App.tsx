@@ -14,6 +14,7 @@ import ListItem from "@/pages/ListItem";
 import Claims from "@/pages/Claims";
 import Profile from "@/pages/Profile";
 import HowToSwap from "@/pages/HowToSwap";
+import AdminPanel from "@/pages/AdminPanel";
 import { Loader2 } from "lucide-react";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ function AppContent() {
           <Route path="/claims" element={<Claims />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/how-to-swap" element={<HowToSwap />} />
+          <Route path="/admin" element={<AdminPanel />} />
         </Routes>
       </main>
     </>
