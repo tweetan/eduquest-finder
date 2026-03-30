@@ -15,6 +15,10 @@ interface AppState {
   isOnline: boolean;
   setIsOnline: (v: boolean) => void;
 
+  // Auth integration
+  initializeFromAuth: (userId: string, email: string, firstName: string) => void;
+  logout: () => void;
+
   // Sync helpers
   loadItemsFromDb: () => Promise<void>;
   loadProfileFromDb: () => Promise<void>;
@@ -126,6 +130,42 @@ export const useStore = create<AppState>()(
       isOnline: false,
 
       setIsOnline: (v) => set({ isOnline: v }),
+
+      // ── Auth integration ───────────────────────────────────
+      initializeFromAuth: (userId, email, firstName) => {
+        const state = get();
+        // Already initialized for this user
+        if (state.user.id === userId) return;
+
+        // Set up user profile with auth data
+        set({
+          user: {
+            ...defaultUser,
+            id: userId,
+            email,
+            firstName,
+            name: firstName || "Parent",
+            hasCompletedOnboarding: state.user.id === userId ? state.user.hasCompletedOnboarding : false,
+          },
+          isOnline: true,
+        });
+
+        // Load profile from Supabase (will merge server data if it exists)
+        get().loadProfileFromDb();
+        get().loadItemsFromDb();
+        get().loadClaimsFromDb();
+      },
+
+      logout: () => {
+        set({
+          user: defaultUser,
+          claims: [],
+          flags: [],
+          supportTickets: [],
+          isOnline: false,
+          items: generateSampleItems(),
+        });
+      },
 
       // ── Sync from DB ───────────────────────────────────────
       loadItemsFromDb: async () => {

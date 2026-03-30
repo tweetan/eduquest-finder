@@ -20,11 +20,14 @@ import {
   Info,
   Pencil,
   AlertTriangle,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export default function Profile() {
-  const { user, items, getStarClaimsRemaining, updateUser } = useStore();
+  const { user, items, getStarClaimsRemaining, updateUser, logout } = useStore();
+  const { signOut } = useAuth();
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editForm, setEditForm] = useState({
     firstName: user.firstName || "",
@@ -290,6 +293,19 @@ export default function Profile() {
           </li>
         </ul>
       </div>
+
+      {/* Logout */}
+      <Button
+        variant="outline"
+        className="w-full mt-6 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+        onClick={async () => {
+          await signOut();
+          logout();
+        }}
+      >
+        <LogOut size={16} className="mr-2" />
+        Log out
+      </Button>
 
       {/* Edit Profile Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
